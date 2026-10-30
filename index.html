@@ -1,0 +1,1797 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ECHOs海洋手作POS</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Noto Sans TC -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans TC"', 'sans-serif'],
+          },
+          colors: {
+            cream: '#F9F8F6',
+            oat: '#F0ECE1',
+            brand: {
+              DEFAULT: '#2C4A3E',
+              light: '#3D6354',
+              dark: '#1E352B',
+              soft: '#EBF0EC'
+            },
+            terra: '#C86D51',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #F9F8F6;
+      color: #292524;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    input, textarea, select {
+      user-select: text;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #D6D3D1;
+      border-radius: 9999px;
+    }
+    .touch-btn:active {
+      transform: scale(0.97);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- 頂部導覽列 -->
+  <header class="bg-white/95 backdrop-blur border-b border-stone-200 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
+      <!-- 品牌名稱 -->
+      <div class="flex items-center gap-2.5 cursor-pointer group shrink-0" onclick="editShopName()" title="點擊修改店名（全系統與雲端自動連動）">
+        <div id="shopLogoBadge" class="w-9 h-9 rounded-xl bg-brand flex items-center justify-center text-white font-bold text-lg shadow-sm group-hover:bg-brand-light transition">
+          森
+        </div>
+        <div>
+          <div class="flex items-center gap-1">
+            <h1 id="shopNameDisplay" class="font-bold text-stone-800 text-sm sm:text-lg tracking-wide truncate max-w-[120px] sm:max-w-none">森日手作工作室</h1>
+            <svg class="w-3.5 h-3.5 text-stone-400 group-hover:text-brand shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+          </div>
+          <p class="text-[11px] text-stone-400 hidden md:block">Google Sheet 雲端跨裝置同步 POS</p>
+        </div>
+      </div>
+
+      <!-- 中央導覽頁籤 -->
+      <nav class="flex bg-stone-100 p-1 rounded-xl border border-stone-200/70">
+        <button onclick="switchTab('pos')" id="tab-pos" class="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-1 bg-brand text-white shadow-sm">
+          <span>🛒</span><span>收銀</span>
+        </button>
+        <button onclick="switchTab('products')" id="tab-products" class="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-1 text-stone-600 hover:text-stone-900">
+          <span>📦</span><span>商品</span>
+        </button>
+        <button onclick="switchTab('analytics')" id="tab-analytics" class="px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-1 text-stone-600 hover:text-stone-900">
+          <span>📊</span><span>統計</span>
+        </button>
+      </nav>
+
+      <!-- 右側：Google Sheet 雲端同步狀態與按鈕 -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button onclick="pullFromCloud(true)" id="btn-quick-pull" title="立即從雲端抓取最新資料" class="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-medium transition">
+          <span>🔄</span><span class="hidden lg:inline">抓取最新</span>
+        </button>
+        <button onclick="openCloudModal()" id="cloud-status-btn" class="touch-btn px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition bg-amber-50 border-amber-200 text-amber-800">
+          <span id="cloud-status-dot" class="w-2 h-2 rounded-full bg-amber-500"></span>
+          <span id="cloud-status-text">雲端未連結</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主內容區 -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6">
+
+    <!-- ==================== 模組 2：市集收銀與購物車 (POS) ==================== -->
+    <section id="view-pos" class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      
+      <!-- 左側：商品與規格選購區 (佔 7 欄) -->
+      <div class="lg:col-span-7 space-y-4">
+        <div class="bg-white p-3 rounded-2xl border border-stone-200/80 shadow-sm flex items-center justify-between gap-2 overflow-x-auto" id="pos-category-bar"></div>
+        <div id="pos-product-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5"></div>
+      </div>
+
+      <!-- 右側：購物車與結帳設定區 (佔 5 欄) -->
+      <div class="lg:col-span-5 bg-white rounded-2xl border border-stone-200/90 shadow-sm overflow-hidden lg:sticky lg:top-20 flex flex-col">
+        <div class="px-5 py-3.5 bg-oat/60 border-b border-stone-200/80 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-stone-800 text-base">當前結帳清單</span>
+            <span id="cart-count-badge" class="bg-brand text-white text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+          </div>
+          <button onclick="clearCart()" class="text-xs text-stone-500 hover:text-red-600 px-2 py-1 rounded hover:bg-stone-200/50 transition">
+            清空購物車
+          </button>
+        </div>
+
+        <div id="cart-items-container" class="p-4 space-y-2.5 max-h-[34vh] overflow-y-auto divide-y divide-stone-100"></div>
+
+        <!-- 折扣設定區 -->
+        <div class="px-5 py-3.5 bg-stone-50/80 border-t border-stone-200/80 space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold text-stone-600 uppercase tracking-wider">自訂折扣設定</span>
+            <div class="inline-flex rounded-lg bg-stone-200/80 p-0.5 text-xs">
+              <button type="button" onclick="setDiscountMode('none')" id="disc-btn-none" class="px-2.5 py-1 rounded-md font-bold bg-white text-brand shadow-xs">無折扣</button>
+              <button type="button" onclick="setDiscountMode('fixed')" id="disc-btn-fixed" class="px-2.5 py-1 rounded-md font-medium text-stone-600">折抵金額 ($)</button>
+              <button type="button" onclick="setDiscountMode('percent')" id="disc-btn-percent" class="px-2.5 py-1 rounded-md font-medium text-stone-600">折數 (%)</button>
+            </div>
+          </div>
+
+          <div id="discount-input-area" class="hidden space-y-2 pt-1">
+            <div class="flex items-center gap-2">
+              <div class="relative flex-1">
+                <input type="number" id="discount-value-input" oninput="handleDiscountInput(this.value)" placeholder="輸入數值" class="w-full pl-3 pr-12 py-2 bg-white border border-stone-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand">
+                <span id="discount-unit-label" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-stone-400 font-medium">NT$</span>
+              </div>
+              <div id="discount-quick-chips" class="flex gap-1.5"></div>
+            </div>
+            <p id="discount-helper-text" class="text-[11px] text-stone-500"></p>
+          </div>
+        </div>
+
+        <!-- 備註與收款/客製資訊區 -->
+        <div class="px-5 py-3.5 border-t border-stone-200/80 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-stone-600">備註（收款方式 / 訂製寄件資訊）</label>
+            <button onclick="document.getElementById('cart-note').value=''; updateCartNote('');" class="text-[11px] text-stone-400 hover:text-stone-600">清除備註</button>
+          </div>
+          
+          <div class="flex flex-wrap gap-1.5">
+            <button type="button" onclick="appendNoteTag('[現金]')" class="touch-btn text-xs bg-brand-soft text-brand font-medium px-2.5 py-1 rounded-lg border border-brand/20 hover:bg-brand hover:text-white transition">💵 現金</button>
+            <button type="button" onclick="appendNoteTag('[LINE Pay]')" class="touch-btn text-xs bg-brand-soft text-brand font-medium px-2.5 py-1 rounded-lg border border-brand/20 hover:bg-brand hover:text-white transition">🟢 LINE Pay</button>
+            <button type="button" onclick="appendNoteTag('[全支付]')" class="touch-btn text-xs bg-brand-soft text-brand font-medium px-2.5 py-1 rounded-lg border border-brand/20 hover:bg-brand hover:text-white transition">🔵 全支付</button>
+            <button type="button" onclick="appendNoteTag('[網銀轉帳]')" class="touch-btn text-xs bg-brand-soft text-brand font-medium px-2.5 py-1 rounded-lg border border-brand/20 hover:bg-brand hover:text-white transition">🏦 轉帳</button>
+            <button type="button" onclick="appendNoteTemplate()" class="touch-btn text-xs bg-amber-50 text-amber-800 font-medium px-2.5 py-1 rounded-lg border border-amber-200 hover:bg-amber-100 transition">📝 + 訂製寄件範本</button>
+          </div>
+
+          <textarea id="cart-note" rows="2" oninput="updateCartNote(this.value)" placeholder="點擊上方標籤或輸入：客人姓名、電話、7-11/全家店名、客製化細節..." class="w-full p-2.5 text-sm bg-stone-50 border border-stone-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand resize-none"></textarea>
+        </div>
+
+        <!-- 金額計算與前往結算按鈕 -->
+        <div class="p-5 bg-oat/70 border-t border-stone-200 space-y-3">
+          <div class="space-y-1 text-sm">
+            <div class="flex justify-between text-stone-500">
+              <span>商品小計</span>
+              <span id="summary-subtotal">NT$ 0</span>
+            </div>
+            <div class="flex justify-between text-terra font-medium">
+              <span>折扣折抵</span>
+              <span id="summary-discount">- NT$ 0</span>
+            </div>
+            <div class="flex justify-between items-baseline pt-2 border-t border-stone-300/70">
+              <span class="font-bold text-stone-800 text-base">應收總金額</span>
+              <span id="summary-total" class="text-2xl font-bold text-brand">NT$ 0</span>
+            </div>
+          </div>
+
+          <button onclick="openCheckoutConfirm()" id="btn-checkout" class="touch-btn w-full py-3.5 bg-brand hover:bg-brand-light text-white font-bold rounded-xl shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 text-base disabled:opacity-40 disabled:pointer-events-none">
+            <span>前往結算確認</span>
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 模組 1：商品管理 (Product Management) ==================== -->
+    <section id="view-products" class="hidden space-y-5">
+      <div class="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-stone-800">商品與多規格管理（全系統＆雲端即時連動）</h2>
+          <p class="text-xs text-stone-500 mt-0.5">在此修改商品或規格名稱/單價，購物車、歷史訂單統計與 Google Sheet 將自動同步更新。</p>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <button onclick="resetDemoData()" class="px-3.5 py-2.5 rounded-xl border border-stone-300 text-stone-600 text-xs font-medium hover:bg-stone-100 transition">
+            還原示範商品
+          </button>
+          <button onclick="openProductModal()" class="touch-btn px-4 py-2.5 bg-brand hover:bg-brand-light text-white text-sm font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition">
+            <span>＋ 新增商品</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="manage-product-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </section>
+
+    <!-- ==================== 模組 3：歷史訂單與銷售統計 (Order History & Analytics) ==================== -->
+    <section id="view-analytics" class="hidden space-y-6">
+      
+      <!-- 日期篩選與匯出控制列 -->
+      <div class="bg-white p-4 sm:p-5 rounded-2xl border border-stone-200/80 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <span class="text-sm font-bold text-stone-700">統計日期區間：</span>
+          <input type="date" id="filter-date-start" onchange="renderAnalyticsAndHistory()" class="px-3 py-1.5 bg-stone-50 border border-stone-300 rounded-xl text-sm">
+          <span class="text-stone-400">至</span>
+          <input type="date" id="filter-date-end" onchange="renderAnalyticsAndHistory()" class="px-3 py-1.5 bg-stone-50 border border-stone-300 rounded-xl text-sm">
+          
+          <div class="flex gap-1.5 ml-1">
+            <button onclick="setQuickDateFilter('today')" class="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-medium transition">今天</button>
+            <button onclick="setQuickDateFilter('week')" class="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-medium transition">近 7 天</button>
+            <button onclick="setQuickDateFilter('all')" class="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-medium transition">全部紀錄</button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="pullFromCloud(true)" class="touch-btn px-3.5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl transition">
+            🔄 從雲端刷新
+          </button>
+          <button onclick="exportOrdersToCSV()" class="touch-btn px-4 py-2.5 bg-brand hover:bg-brand-light text-white text-sm font-bold rounded-xl shadow-sm flex items-center justify-center gap-2 transition">
+            <span>📥 匯出 Excel (CSV)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 數據儀表板卡片 -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-sm">
+          <p class="text-xs font-bold text-stone-400 uppercase tracking-wider">區間總營業額</p>
+          <p id="stat-total-revenue" class="text-3xl font-bold text-brand mt-2">NT$ 0</p>
+          <p id="stat-discount-total" class="text-xs text-stone-400 mt-1">累計折讓 NT$ 0</p>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-sm">
+          <p class="text-xs font-bold text-stone-400 uppercase tracking-wider">完成總訂單數</p>
+          <p id="stat-total-orders" class="text-3xl font-bold text-stone-800 mt-2">0 筆</p>
+          <p id="stat-total-items" class="text-xs text-stone-400 mt-1">共售出 0 件商品</p>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-sm">
+          <p class="text-xs font-bold text-stone-400 uppercase tracking-wider">平均客單價 (AOV)</p>
+          <p id="stat-avg-order" class="text-3xl font-bold text-terra mt-2">NT$ 0</p>
+          <p class="text-xs text-stone-400 mt-1">總營業額 ÷ 總訂單數</p>
+        </div>
+      </div>
+
+      <!-- 雙欄：商品銷售排行 & 歷史訂單紀錄 -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div class="lg:col-span-5 bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-stone-200/80 bg-oat/50 flex justify-between items-center">
+            <h3 class="font-bold text-stone-800 text-sm">🏆 商品與規格銷售排行</h3>
+            <span class="text-xs text-stone-500">依銷售額排序</span>
+          </div>
+          <div id="product-ranking-list" class="p-4 divide-y divide-stone-100 max-h-[550px] overflow-y-auto"></div>
+        </div>
+
+        <div class="lg:col-span-7 bg-white rounded-2xl border border-stone-200/80 shadow-sm overflow-hidden">
+          <div class="p-4 sm:px-5 border-b border-stone-200/80 bg-oat/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h3 class="font-bold text-stone-800 text-sm">📋 歷史結帳訂單明細</h3>
+            <div class="relative w-full sm:w-64">
+              <input type="text" id="order-search-input" oninput="renderAnalyticsAndHistory()" placeholder="搜尋姓名、電話、LINE Pay、商品..." class="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand">
+              <svg class="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
+          </div>
+
+          <div id="order-history-list" class="p-4 space-y-3 max-h-[600px] overflow-y-auto"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== 彈跳視窗 0：Google Sheet 雲端跨裝置同步設定 ==================== -->
+  <div id="modal-cloud" class="fixed inset-0 bg-stone-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-stone-200 overflow-hidden">
+      <div class="px-6 py-4 bg-brand text-white flex items-center justify-between">
+        <div>
+          <span class="text-[11px] uppercase tracking-widest text-brand-soft/80">Google Sheets Cloud Sync</span>
+          <h3 class="text-base font-bold">☁️ Google 試算表雲端跨裝置同步設定</h3>
+        </div>
+        <button onclick="closeCloudModal()" class="text-white/80 hover:text-white p-1">✕</button>
+      </div>
+
+      <div class="p-6 space-y-4 max-h-[78vh] overflow-y-auto text-sm">
+        <div>
+          <label class="block text-xs font-bold text-stone-700 mb-1">Google Apps Script 網頁應用程式網址 (Web App URL)</label>
+          <input type="url" id="gas-url-input" placeholder="https://script.google.com/macros/s/......./exec" class="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand">
+          <p class="text-[11px] text-stone-500 mt-1">綁定後，所有新增/修改的商品與訂單都會自動寫入 Google Sheet，且其他裝置開啟網頁時也能自動抓到最新資料。</p>
+        </div>
+
+        <!-- 同步狀態資訊盒 -->
+        <div class="bg-oat/60 rounded-2xl p-4 border border-stone-200/80 space-y-2 text-xs">
+          <div class="flex justify-between">
+            <span class="text-stone-500">目前連線狀態：</span>
+            <span id="modal-sync-status" class="font-bold text-stone-800">尚未設定</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-stone-500">最後雲端同步時間：</span>
+            <span id="modal-last-sync" class="font-mono text-stone-700">—</span>
+          </div>
+        </div>
+
+        <!-- 手動雙向操作按鈕 -->
+        <div class="grid grid-cols-2 gap-3 pt-1">
+          <button onclick="pullFromCloud(true)" class="touch-btn py-2.5 px-3 rounded-xl border border-brand text-brand font-bold text-xs hover:bg-brand-soft transition flex items-center justify-center gap-1.5">
+            <span>⬇️ 從雲端抓取覆蓋本機</span>
+          </button>
+          <button onclick="pushToCloud(true)" class="touch-btn py-2.5 px-3 rounded-xl bg-brand/10 border border-brand/30 text-brand font-bold text-xs hover:bg-brand hover:text-white transition flex items-center justify-center gap-1.5">
+            <span>⬆️ 將本機資料強制推上雲端</span>
+          </button>
+        </div>
+
+        <!-- 跨裝置免重填專屬連結 -->
+        <div id="magic-link-box" class="hidden bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3.5 space-y-2">
+          <p class="text-xs font-bold text-emerald-900">🔗 跨裝置一鍵帶入專屬連結</p>
+          <p class="text-[11px] text-emerald-700 leading-relaxed">把此網頁放上網路（如 GitHub Pages / Netlify）後，用下方專屬連結在手機或另一台 iPad 開啟，就會**自動綁定同一個 Google Sheet 並抓取資料**，免重複貼網址！</p>
+          <button onclick="copyMagicLink()" class="w-full py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition">
+            📋 複製含雲端金鑰的專屬網址
+          </button>
+        </div>
+      </div>
+
+      <div class="px-6 py-4 bg-stone-50 border-t border-stone-200 flex justify-between items-center gap-2">
+        <button onclick="disconnectCloud()" class="text-xs text-red-600 hover:underline">清除雲端連結</button>
+        <div class="flex gap-2">
+          <button onclick="closeCloudModal()" class="px-4 py-2 rounded-xl border border-stone-300 text-stone-600 text-xs font-medium">關閉</button>
+          <button onclick="saveCloudConfig()" class="px-5 py-2 rounded-xl bg-brand hover:bg-brand-light text-white text-xs font-bold shadow-sm">儲存並立即連線同步</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 彈跳視窗 1：兩步驟結帳【訂單確認明細頁】 ==================== -->
+  <div id="modal-checkout-confirm" class="fixed inset-0 bg-stone-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-stone-200 overflow-hidden">
+      <div class="px-6 py-4 bg-brand text-white flex items-center justify-between">
+        <div>
+          <span class="text-[11px] uppercase tracking-widest text-brand-soft/80">Step 1 of 2</span>
+          <h3 class="text-lg font-bold">訂單結算確認</h3>
+        </div>
+        <button onclick="closeCheckoutConfirm()" class="text-white/80 hover:text-white p-1">✕</button>
+      </div>
+
+      <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+        <p class="text-xs text-stone-500">請與客人核對以下購買項目與總金額，確認送出後將自動寫入本機與 Google Sheet 雲端。</p>
+        <div class="bg-stone-50 rounded-2xl p-4 border border-stone-200/80 space-y-2.5" id="confirm-items-list"></div>
+
+        <div class="bg-oat/50 rounded-2xl p-4 space-y-1.5 text-sm">
+          <div class="flex justify-between text-stone-600">
+            <span>原始小計</span>
+            <span id="confirm-subtotal">NT$ 0</span>
+          </div>
+          <div class="flex justify-between text-terra font-medium">
+            <span>折扣折抵</span>
+            <span id="confirm-discount">- NT$ 0</span>
+          </div>
+          <div class="flex justify-between items-baseline pt-2 border-t border-stone-300 text-base">
+            <span class="font-bold text-stone-800">最終應收總金額</span>
+            <span id="confirm-total" class="text-2xl font-bold text-brand">NT$ 0</span>
+          </div>
+        </div>
+
+        <div class="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3.5 text-xs space-y-1">
+          <span class="font-bold text-amber-900 block">📌 訂單備註（付款方式 / 寄件資訊）：</span>
+          <p id="confirm-note" class="text-stone-700 whitespace-pre-wrap leading-relaxed"></p>
+        </div>
+      </div>
+
+      <div class="px-6 py-4 bg-stone-50 border-t border-stone-200 flex gap-3">
+        <button onclick="closeCheckoutConfirm()" class="touch-btn flex-1 py-3 rounded-xl border border-stone-300 font-bold text-stone-600 hover:bg-stone-100 text-sm transition">
+          ← 返回修改
+        </button>
+        <button onclick="submitOrderAndShowReceipt()" class="touch-btn flex-1 py-3 rounded-xl bg-brand hover:bg-brand-light text-white font-bold shadow-md text-sm transition">
+          ✓ 確認送出並同步雲端
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 彈跳視窗 2：【精美電子收據卡片】 ==================== -->
+  <div id="modal-receipt" class="fixed inset-0 bg-stone-900/70 backdrop-blur-xs z-50 hidden items-center justify-center p-4 overflow-y-auto">
+    <div class="max-w-sm w-full my-auto space-y-4">
+      <div class="text-center text-white/90 text-xs flex items-center justify-center gap-1.5">
+        <span>📸</span>
+        <span>可直接於此畫面截圖（Screenshot）傳送給客人留存</span>
+      </div>
+
+      <div id="receipt-capture-area" class="bg-cream rounded-2xl shadow-2xl border border-stone-300 overflow-hidden text-stone-800">
+        <div class="bg-brand text-white px-6 py-5 text-center relative">
+          <p class="text-[10px] tracking-[0.2em] uppercase text-brand-soft/80">HANDCRAFTED MARKET RECEIPT</p>
+          <h3 id="receipt-shop-name" class="text-xl font-bold tracking-wider mt-1">森日手作工作室</h3>
+          <div class="w-8 h-0.5 bg-white/40 mx-auto my-2.5 rounded-full"></div>
+          <div class="flex justify-between text-[11px] text-brand-soft/90 font-mono">
+            <span id="receipt-order-id">#20261029-001</span>
+            <span id="receipt-datetime">2026/10/29 14:30</span>
+          </div>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <div id="receipt-items-list" class="space-y-2.5 divide-y divide-dashed divide-stone-300 text-xs"></div>
+
+          <div class="border-t-2 border-stone-800 pt-3 space-y-1 text-xs">
+            <div class="flex justify-between text-stone-500">
+              <span>商品小計 Subtotal</span>
+              <span id="receipt-subtotal">NT$ 0</span>
+            </div>
+            <div id="receipt-discount-row" class="flex justify-between text-terra">
+              <span>優惠折抵 Discount</span>
+              <span id="receipt-discount">- NT$ 0</span>
+            </div>
+            <div class="flex justify-between items-baseline pt-2 text-sm">
+              <span class="font-bold text-stone-900">實收總計 TOTAL</span>
+              <span id="receipt-total" class="text-xl font-bold text-brand">NT$ 0</span>
+            </div>
+          </div>
+
+          <div id="receipt-note-box" class="bg-oat/80 rounded-xl p-3 text-xs space-y-1 border border-stone-200/90">
+            <span class="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">備註與交易資訊 NOTE</span>
+            <p id="receipt-note" class="text-stone-800 whitespace-pre-wrap leading-relaxed font-medium"></p>
+          </div>
+
+          <div class="text-center pt-2 border-t border-dashed border-stone-300">
+            <p class="text-xs font-medium text-stone-600">謝謝您的支持與喜愛，願美好物件陪伴您的日常 🌿</p>
+            <p class="text-[10px] text-stone-400 mt-0.5">請妥善保留此電子明細以利售後或取件核對</p>
+          </div>
+        </div>
+      </div>
+
+      <button onclick="closeReceiptModal()" class="touch-btn w-full py-3.5 bg-white hover:bg-stone-100 text-stone-800 font-bold rounded-2xl shadow-lg text-sm transition">
+        關閉收據視窗
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== 彈跳視窗 3：新增/編輯商品與多規格 ==================== -->
+  <div id="modal-product" class="fixed inset-0 bg-stone-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-stone-200 overflow-hidden">
+      <div class="px-6 py-4 bg-oat border-b border-stone-200 flex items-center justify-between">
+        <h3 id="product-modal-title" class="text-base font-bold text-stone-800">新增商品與規格</h3>
+        <button onclick="closeProductModal()" class="text-stone-400 hover:text-stone-700 p-1">✕</button>
+      </div>
+
+      <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+        <input type="hidden" id="edit-product-id">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-bold text-stone-600 mb-1">商品名稱 *</label>
+            <input type="text" id="prod-name-input" placeholder="例如：手捏柴燒馬克杯" class="w-full px-3.5 py-2 bg-stone-50 border border-stone-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-stone-600 mb-1">分類標籤（選填）</label>
+            <input type="text" id="prod-cat-input" placeholder="例如：器皿" class="w-full px-3.5 py-2 bg-stone-50 border border-stone-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand">
+          </div>
+        </div>
+
+        <div class="space-y-2.5 pt-2">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-stone-600">商品規格與單價設定 *</label>
+            <button type="button" onclick="addVariantRowInModal()" class="text-xs text-brand font-bold hover:underline">＋ 新增一個規格</button>
+          </div>
+          <div id="modal-variants-container" class="space-y-2"></div>
+        </div>
+      </div>
+
+      <div class="px-6 py-4 bg-stone-50 border-t border-stone-200 flex justify-end gap-2.5">
+        <button onclick="closeProductModal()" class="px-4 py-2.5 rounded-xl border border-stone-300 text-stone-600 text-sm font-medium hover:bg-stone-100">取消</button>
+        <button onclick="saveProductFromModal()" class="px-5 py-2.5 rounded-xl bg-brand hover:bg-brand-light text-white text-sm font-bold shadow-sm">儲存並連動同步</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 彈跳視窗 4：完整編輯歷史訂單 (明細、數量、新增品項、金額、備註全連動) ==================== -->
+  <div id="modal-edit-order" class="fixed inset-0 bg-stone-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-stone-200 overflow-hidden">
+      <div class="px-6 py-4 bg-oat border-b border-stone-200 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold text-stone-800">完整編輯訂單紀錄（連動統計與雲端）</h3>
+          <p id="edit-order-no" class="text-xs font-mono text-stone-500"></p>
+        </div>
+        <button onclick="closeEditOrderModal()" class="text-stone-400 hover:text-stone-700 p-1">✕</button>
+      </div>
+
+      <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+        <input type="hidden" id="edit-order-id">
+
+        <!-- 訂單內商品明細編輯 -->
+        <div class="space-y-2">
+          <label class="block text-xs font-bold text-stone-600">購買商品明細（可加減數量或刪除）</label>
+          <div id="edit-order-items-container" class="bg-stone-50 rounded-2xl p-3 border border-stone-200 space-y-2"></div>
+          
+          <!-- 補加商品進此訂單 -->
+          <div class="flex gap-2 pt-1">
+            <select id="edit-order-add-select" class="flex-1 px-3 py-1.5 bg-white border border-stone-300 rounded-xl text-xs"></select>
+            <button type="button" onclick="addItemToEditingOrder()" class="px-3 py-1.5 bg-brand text-white text-xs font-bold rounded-xl shrink-0">＋補加品項</button>
+          </div>
+        </div>
+
+        <!-- 小計與實收金額連動計算 -->
+        <div class="grid grid-cols-2 gap-3 bg-oat/50 p-3.5 rounded-2xl border border-stone-200/80">
+          <div>
+            <span class="text-[11px] text-stone-500 block">重算商品小計</span>
+            <span id="edit-order-subtotal" class="text-base font-bold text-stone-800">NT$ 0</span>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-brand mb-0.5">最終實收總金額 (NT$)</label>
+            <input type="number" id="edit-order-total-input" class="w-full px-2.5 py-1 bg-white border border-stone-300 rounded-lg text-sm font-bold text-brand">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-stone-600 mb-1">訂單備註（收款方式 / 客人寄件資訊）</label>
+          <textarea id="edit-order-note-input" rows="3" class="w-full p-3 bg-stone-50 border border-stone-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand"></textarea>
+        </div>
+      </div>
+
+      <div class="px-6 py-4 bg-stone-50 border-t border-stone-200 flex justify-end gap-2.5">
+        <button onclick="closeEditOrderModal()" class="px-4 py-2.5 rounded-xl border border-stone-300 text-stone-600 text-sm font-medium hover:bg-stone-100">取消</button>
+        <button onclick="saveEditedOrder()" class="px-5 py-2.5 rounded-xl bg-brand hover:bg-brand-light text-white text-sm font-bold shadow-sm">儲存修改並同步雲端</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 輕量提示 Toast -->
+  <div id="toast" class="fixed bottom-5 right-5 bg-stone-900 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-medium transition-all duration-300 opacity-0 pointer-events-none z-50">
+    已更新
+  </div>
+
+  <!-- ==================== JavaScript 核心與雲端同步邏輯 ==================== -->
+  <script>
+    const STORAGE_KEYS = {
+      SHOP_NAME: 'market_pos_shop_name_v2',
+      PRODUCTS: 'market_pos_products_v2',
+      ORDERS: 'market_pos_orders_v2',
+      GAS_URL: 'market_pos_gas_url_v2',
+      LAST_SYNC: 'market_pos_last_sync_v2'
+    };
+
+    let state = {
+      shopName: '森日手作工作室',
+      products: [],
+      orders: [],
+      posCategory: 'ALL',
+      cart: [],
+      discount: { mode: 'none', value: 0 },
+      cartNote: '',
+      gasUrl: '',
+      lastSync: '',
+      editingOrderItems: [] // 暫存正在編輯的歷史訂單品項
+    };
+
+    // --- 預設示範資料 ---
+    function getDefaultProducts() {
+      return [
+        {
+          id: 'p1',
+          name: '手捏陶器馬克杯',
+          category: '器皿',
+          variants: [
+            { id: 'v101', name: '霧白釉 (300ml)', price: 680 },
+            { id: 'v102', name: '森綠釉 (300ml)', price: 680 },
+            { id: 'v103', name: '柴燒雙耳款 (大)', price: 850 }
+          ]
+        },
+        {
+          id: 'p2',
+          name: '天然大豆精油蠟燭',
+          category: '香氛',
+          variants: [
+            { id: 'v201', name: '雪松森林 120g', price: 520 },
+            { id: 'v202', name: '伯爵白茶 120g', price: 520 },
+            { id: 'v203', name: '旅行木芯小罐 50g', price: 280 }
+          ]
+        },
+        {
+          id: 'p3',
+          name: '水洗亞麻刺繡托特包',
+          category: '織品',
+          variants: [
+            { id: 'v301', name: '燕麥色 - 隨身小款', price: 490 },
+            { id: 'v302', name: '深墨綠 - A4肩背款', price: 790 },
+            { id: 'v303', name: '加購：手繡英文名字', price: 150 }
+          ]
+        },
+        {
+          id: 'p4',
+          name: '植物標本實木相框',
+          category: '家飾',
+          variants: [
+            { id: 'v401', name: '尤加利葉 (5吋桌擺)', price: 650 },
+            { id: 'v402', name: '乾燥玫瑰 (7吋壁掛)', price: 920 }
+          ]
+        }
+      ];
+    }
+
+    function getDefaultOrders() {
+      const now = new Date();
+      const todayStr = formatDateYMD(now);
+      return [
+        {
+          id: `${todayStr.replace(/-/g, '')}-001`,
+          timestamp: new Date(now.getTime() - 1000 * 60 * 45).toISOString(),
+          items: [
+            { productId: 'p1', productName: '手捏陶器馬克杯', variantId: 'v102', variantName: '森綠釉 (300ml)', price: 680, qty: 1 }
+          ],
+          subtotal: 680,
+          discountAmount: 0,
+          finalTotal: 680,
+          note: '[LINE Pay] 現貨已取'
+        }
+      ];
+    }
+
+    // --- 啟動初始化 ---
+    async function initApp() {
+      // 1. 檢查網址列是否帶有 ?gas=... 參數 (支援跨裝置一鍵開啟自動綁定雲端)
+      const urlParams = new URLSearchParams(window.location.search);
+      const gasFromUrl = urlParams.get('gas');
+      if (gasFromUrl && gasFromUrl.startsWith('https://script.google.com/')) {
+        localStorage.setItem(STORAGE_KEYS.GAS_URL, gasFromUrl.trim());
+      }
+
+      state.gasUrl = localStorage.getItem(STORAGE_KEYS.GAS_URL) || '';
+      state.lastSync = localStorage.getItem(STORAGE_KEYS.LAST_SYNC) || '';
+      state.shopName = localStorage.getItem(STORAGE_KEYS.SHOP_NAME) || '森日手作工作室';
+
+      const savedProducts = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
+      state.products = savedProducts ? JSON.parse(savedProducts) : getDefaultProducts();
+
+      const savedOrders = localStorage.getItem(STORAGE_KEYS.ORDERS);
+      state.orders = savedOrders ? JSON.parse(savedOrders) : getDefaultOrders();
+
+      setQuickDateFilter('today', false);
+      refreshAllViews();
+      updateCloudIndicator('idle');
+
+      // 2. 若已綁定 Google Sheet 雲端網址，開啟網頁時自動從雲端抓取最新資料
+      if (state.gasUrl) {
+        await pullFromCloud(false);
+      }
+
+      // 3. 監聽跨分頁 localStorage 同步
+      window.addEventListener('storage', () => {
+        state.shopName = localStorage.getItem(STORAGE_KEYS.SHOP_NAME) || state.shopName;
+        state.products = JSON.parse(localStorage.getItem(STORAGE_KEYS.PRODUCTS) || '[]');
+        state.orders = JSON.parse(localStorage.getItem(STORAGE_KEYS.ORDERS) || '[]');
+        refreshAllViews();
+      });
+    }
+
+    // --- 全域視圖與資料連動刷新 ---
+    function refreshAllViews() {
+      document.getElementById('shopNameDisplay').textContent = state.shopName;
+      document.getElementById('shopLogoBadge').textContent = state.shopName.charAt(0) || '森';
+      syncCartWithProducts();
+      renderPOS();
+      renderCart();
+      renderProductManagement();
+      renderAnalyticsAndHistory();
+    }
+
+    // 當商品或規格被編輯/改價/刪除時，同步連動購物車與歷史訂單名稱
+    function syncCartWithProducts() {
+      const updatedCart = [];
+      state.cart.forEach(item => {
+        const prod = state.products.find(p => p.id === item.productId);
+        if (prod) {
+          const variant = prod.variants.find(v => v.id === item.variantId);
+          if (variant) {
+            item.productName = prod.name;
+            item.variantName = variant.name;
+            item.price = variant.price;
+            updatedCart.push(item);
+          }
+        }
+      });
+      state.cart = updatedCart;
+
+      // 同步更新歷史訂單內的商品名稱與規格名稱（確保統計排行榜名稱一致不分裂）
+      state.orders.forEach(order => {
+        (order.items || []).forEach(item => {
+          const prod = state.products.find(p => p.id === item.productId);
+          if (prod) {
+            item.productName = prod.name;
+            const variant = prod.variants.find(v => v.id === item.variantId);
+            if (variant) {
+              item.variantName = variant.name;
+            }
+          }
+        });
+      });
+    }
+
+    function saveAllDataAndSync(toastMsg = '資料已更新') {
+      syncCartWithProducts();
+      localStorage.setItem(STORAGE_KEYS.SHOP_NAME, state.shopName);
+      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(state.products));
+      localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(state.orders));
+      refreshAllViews();
+      showToast(toastMsg);
+
+      if (state.gasUrl) {
+        pushToCloud(false);
+      }
+    }
+
+    // ==================== Google Sheet 雲端同步核心 ====================
+    function updateCloudIndicator(status, customText) {
+      const btn = document.getElementById('cloud-status-btn');
+      const dot = document.getElementById('cloud-status-dot');
+      const text = document.getElementById('cloud-status-text');
+      const pullBtn = document.getElementById('btn-quick-pull');
+      const modalStatus = document.getElementById('modal-sync-status');
+      const modalLast = document.getElementById('modal-last-sync');
+      const magicBox = document.getElementById('magic-link-box');
+
+      if (modalLast) modalLast.textContent = state.lastSync || '尚未同步';
+
+      if (!state.gasUrl) {
+        btn.className = 'touch-btn px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition bg-amber-50 border-amber-200 text-amber-800';
+        dot.className = 'w-2 h-2 rounded-full bg-amber-500';
+        text.textContent = '雲端未連結';
+        if (pullBtn) pullBtn.classList.add('hidden');
+        if (modalStatus) modalStatus.textContent = '尚未綁定 Google Sheet 網址';
+        if (magicBox) magicBox.classList.add('hidden');
+        return;
+      }
+
+      if (pullBtn) pullBtn.classList.remove('hidden');
+      if (magicBox) magicBox.classList.remove('hidden');
+
+      if (status === 'syncing') {
+        btn.className = 'touch-btn px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition bg-sky-50 border-sky-200 text-sky-800';
+        dot.className = 'w-2 h-2 rounded-full bg-sky-500 animate-ping';
+        text.textContent = customText || '雲端同步中...';
+        if (modalStatus) modalStatus.textContent = '正在與 Google Sheet 通訊中...';
+      } else if (status === 'error') {
+        btn.className = 'touch-btn px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition bg-red-50 border-red-200 text-red-700';
+        dot.className = 'w-2 h-2 rounded-full bg-red-500';
+        text.textContent = '離線暫存 (點此重試)';
+        if (modalStatus) modalStatus.textContent = '連線失敗，資料已安全保存於本機';
+      } else {
+        btn.className = 'touch-btn px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition bg-emerald-50 border-emerald-200 text-emerald-800';
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+        text.textContent = '雲端已同步';
+        if (modalStatus) modalStatus.textContent = '已連線並與 Google Sheet 同步';
+      }
+    }
+
+    // 從 Google Sheet 抓取最新資料 (跨裝置開啟時自動執行)
+    async function pullFromCloud(showManualToast = false) {
+      if (!state.gasUrl) {
+        if (showManualToast) openCloudModal();
+        return;
+      }
+      updateCloudIndicator('syncing', '讀取雲端...');
+      try {
+        const res = await fetch(`${state.gasUrl}?t=${Date.now()}`, {
+          method: 'GET',
+          redirect: 'follow'
+        });
+        const result = await res.json();
+
+        if (result.status === 'success' && result.data) {
+          const cloudData = result.data;
+          if (cloudData.shopName) state.shopName = cloudData.shopName;
+          if (Array.isArray(cloudData.products)) state.products = cloudData.products;
+          if (Array.isArray(cloudData.orders)) state.orders = cloudData.orders;
+          state.lastSync = cloudData.updatedAt || formatDateTimeReadable(new Date().toISOString());
+
+          localStorage.setItem(STORAGE_KEYS.SHOP_NAME, state.shopName);
+          localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(state.products));
+          localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(state.orders));
+          localStorage.setItem(STORAGE_KEYS.LAST_SYNC, state.lastSync);
+
+          refreshAllViews();
+          updateCloudIndicator('synced');
+          if (showManualToast) showToast('已從 Google Sheet 載入最新資料！');
+        } else if (result.status === 'empty') {
+          // 雲端試算表是全新的，主動把本機資料推上去初始化
+          await pushToCloud(false);
+        } else {
+          throw new Error(result.message || '回傳格式異常');
+        }
+      } catch (err) {
+        console.error('Cloud Pull Error:', err);
+        updateCloudIndicator('error');
+        if (showManualToast) alert('無法從雲端讀取資料，請確認您的 Google Apps Script 部署權限已設為「所有人」。');
+      }
+    }
+
+    // 將全系統最新資料推送至 Google Sheet
+    async function pushToCloud(showManualToast = false) {
+      if (!state.gasUrl) return;
+      updateCloudIndicator('syncing', '寫入雲端...');
+      try {
+        const payload = {
+          shopName: state.shopName,
+          products: state.products,
+          orders: state.orders
+        };
+
+        // 使用 text/plain 避免 CORS 預檢 (Preflight) 阻擋 Google Apps Script
+        const res = await fetch(state.gasUrl, {
+          method: 'POST',
+          redirect: 'follow',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'syncAll', payload })
+        });
+        const result = await res.json();
+
+        if (result.status === 'success') {
+          state.lastSync = result.updatedAt || formatDateTimeReadable(new Date().toISOString());
+          localStorage.setItem(STORAGE_KEYS.LAST_SYNC, state.lastSync);
+          updateCloudIndicator('synced');
+          if (showManualToast) showToast('已成功同步至 Google 試算表！');
+        } else {
+          throw new Error(result.message || '寫入失敗');
+        }
+      } catch (err) {
+        console.error('Cloud Push Error:', err);
+        updateCloudIndicator('error');
+        if (showManualToast) alert('同步至 Google Sheet 失敗，請檢查網路或網址設定。');
+      }
+    }
+
+    function openCloudModal() {
+      document.getElementById('gas-url-input').value = state.gasUrl;
+      updateCloudIndicator(state.gasUrl ? 'synced' : 'idle');
+      const modal = document.getElementById('modal-cloud');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeCloudModal() {
+      const modal = document.getElementById('modal-cloud');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    async function saveCloudConfig() {
+      const url = document.getElementById('gas-url-input').value.trim();
+      if (!url || !url.startsWith('https://script.google.com/')) {
+        alert('請貼上正確的 Google Apps Script 網頁應用程式網址 (以 https://script.google.com/ 開頭)');
+        return;
+      }
+      state.gasUrl = url;
+      localStorage.setItem(STORAGE_KEYS.GAS_URL, url);
+      await pullFromCloud(true);
+      closeCloudModal();
+    }
+
+    function disconnectCloud() {
+      if (!confirm('確定要解除本裝置與 Google Sheet 的連結嗎？（本機資料仍會保留）')) return;
+      state.gasUrl = '';
+      localStorage.removeItem(STORAGE_KEYS.GAS_URL);
+      document.getElementById('gas-url-input').value = '';
+      updateCloudIndicator('idle');
+      showToast('已解除雲端連結');
+    }
+
+    function copyMagicLink() {
+      if (!state.gasUrl) return;
+      const baseUrl = window.location.origin + window.location.pathname;
+      const magicUrl = `${baseUrl}?gas=${encodeURIComponent(state.gasUrl)}`;
+      navigator.clipboard.writeText(magicUrl).then(() => {
+        showToast('已複製跨裝置專屬連結！');
+      });
+    }
+
+    // --- 品牌店名修改 ---
+    function editShopName() {
+      const newName = prompt('請輸入您的攤位 / 品牌名稱（將連動更新至電子收據與雲端）：', state.shopName);
+      if (newName && newName.trim()) {
+        state.shopName = newName.trim();
+        saveAllDataAndSync('品牌名稱已更新並同步');
+      }
+    }
+
+    function resetDemoData() {
+      if (!confirm('確定要還原「預設示範商品」嗎？（這將會覆蓋目前的商品設定並同步至雲端）')) return;
+      state.products = getDefaultProducts();
+      saveAllDataAndSync('已還原預設示範商品');
+    }
+
+    function switchTab(tabName) {
+      ['pos', 'products', 'analytics'].forEach(t => {
+        const view = document.getElementById(`view-${t}`);
+        const btn = document.getElementById(`tab-${t}`);
+        if (t === tabName) {
+          view.classList.remove('hidden');
+          btn.className = 'px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-1 bg-brand text-white shadow-sm';
+        } else {
+          view.classList.add('hidden');
+          btn.className = 'px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-1 text-stone-600 hover:text-stone-900';
+        }
+      });
+      refreshAllViews();
+    }
+
+    // ==================== 模組 2：市集收銀與購物車邏輯 ====================
+    function renderPOS() {
+      const categories = ['ALL', ...new Set(state.products.map(p => p.category).filter(Boolean))];
+      if (state.posCategory !== 'ALL' && !categories.includes(state.posCategory)) {
+        state.posCategory = 'ALL';
+      }
+
+      const catBar = document.getElementById('pos-category-bar');
+      catBar.innerHTML = `
+        <div class="flex items-center gap-1.5">
+          ${categories.map(cat => {
+            const active = state.posCategory === cat;
+            const label = cat === 'ALL' ? '全部商品' : cat;
+            return `<button onclick="filterPOSCategory('${escapeHtml(cat)}')" class="touch-btn px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${active ? 'bg-brand text-white shadow-xs' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}">${escapeHtml(label)}</button>`;
+          }).join('')}
+        </div>
+        <span class="text-xs text-stone-400 hidden sm:inline whitespace-nowrap">點選規格直接加入結帳單</span>
+      `;
+
+      const grid = document.getElementById('pos-product-grid');
+      const filtered = state.posCategory === 'ALL'
+        ? state.products
+        : state.products.filter(p => p.category === state.posCategory);
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="col-span-full bg-white p-10 rounded-2xl text-center text-stone-400 text-sm">目前沒有商品，請先至「商品」頁籤新增。</div>`;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(prod => `
+        <div class="bg-white rounded-2xl p-4 border border-stone-200/90 shadow-xs flex flex-col justify-between gap-3">
+          <div class="flex items-start justify-between gap-2">
+            <h3 class="font-bold text-stone-800 text-base leading-snug">${escapeHtml(prod.name)}</h3>
+            ${prod.category ? `<span class="text-[11px] px-2 py-0.5 bg-oat text-stone-600 rounded-md font-medium shrink-0">${escapeHtml(prod.category)}</span>` : ''}
+          </div>
+          <div class="grid grid-cols-1 gap-2">
+            ${prod.variants.map(v => {
+              const inCartItem = state.cart.find(item => item.productId === prod.id && item.variantId === v.id);
+              const qtyBadge = inCartItem ? `<span class="bg-brand text-white text-[11px] px-2 py-0.5 rounded-full font-bold ml-1">x${inCartItem.qty}</span>` : '';
+              return `
+                <button onclick="addToCart('${prod.id}', '${v.id}')" class="touch-btn w-full text-left px-3.5 py-2.5 rounded-xl border ${inCartItem ? 'border-brand bg-brand-soft/60' : 'border-stone-200 bg-stone-50/70 hover:bg-oat/50 hover:border-stone-300'} transition flex items-center justify-between gap-2 group">
+                  <div class="text-xs sm:text-sm font-medium text-stone-700 group-hover:text-stone-900">
+                    <span>${escapeHtml(v.name)}</span>
+                    ${qtyBadge}
+                  </div>
+                  <span class="text-sm font-bold text-brand shrink-0">NT$ ${v.price.toLocaleString()}</span>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterPOSCategory(cat) {
+      state.posCategory = cat;
+      renderPOS();
+    }
+
+    function addToCart(productId, variantId) {
+      const prod = state.products.find(p => p.id === productId);
+      if (!prod) return;
+      const variant = prod.variants.find(v => v.id === variantId);
+      if (!variant) return;
+
+      const existing = state.cart.find(item => item.productId === productId && item.variantId === variantId);
+      if (existing) {
+        existing.qty += 1;
+        existing.price = variant.price;
+      } else {
+        state.cart.push({
+          productId: prod.id,
+          productName: prod.name,
+          variantId: variant.id,
+          variantName: variant.name,
+          price: variant.price,
+          qty: 1
+        });
+      }
+      renderPOS();
+      renderCart();
+    }
+
+    function updateCartQty(index, delta) {
+      const item = state.cart[index];
+      if (!item) return;
+      item.qty += delta;
+      if (item.qty <= 0) state.cart.splice(index, 1);
+      renderPOS();
+      renderCart();
+    }
+
+    function removeCartItem(index) {
+      state.cart.splice(index, 1);
+      renderPOS();
+      renderCart();
+    }
+
+    function clearCart() {
+      state.cart = [];
+      state.discount = { mode: 'none', value: 0 };
+      state.cartNote = '';
+      document.getElementById('cart-note').value = '';
+      setDiscountMode('none');
+      renderPOS();
+      renderCart();
+    }
+
+    function setDiscountMode(mode) {
+      state.discount.mode = mode;
+      state.discount.value = 0;
+
+      ['none', 'fixed', 'percent'].forEach(m => {
+        const btn = document.getElementById(`disc-btn-${m}`);
+        btn.className = m === mode
+          ? 'px-2.5 py-1 rounded-md font-bold bg-white text-brand shadow-xs'
+          : 'px-2.5 py-1 rounded-md font-medium text-stone-600';
+      });
+
+      const inputArea = document.getElementById('discount-input-area');
+      const inputEl = document.getElementById('discount-value-input');
+      const unitLabel = document.getElementById('discount-unit-label');
+      const quickChips = document.getElementById('discount-quick-chips');
+      const helperText = document.getElementById('discount-helper-text');
+
+      if (mode === 'none') {
+        inputArea.classList.add('hidden');
+      } else if (mode === 'fixed') {
+        inputArea.classList.remove('hidden');
+        inputEl.value = '';
+        inputEl.placeholder = '折抵金額 (如 50)';
+        unitLabel.textContent = 'NT$';
+        helperText.textContent = '直接從小計扣除指定台幣金額。';
+        quickChips.innerHTML = `
+          <button onclick="applyQuickDiscount(20)" class="px-2.5 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-medium hover:bg-stone-100">-20</button>
+          <button onclick="applyQuickDiscount(50)" class="px-2.5 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-medium hover:bg-stone-100">-50</button>
+          <button onclick="applyQuickDiscount(100)" class="px-2.5 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-medium hover:bg-stone-100">-100</button>
+        `;
+      } else if (mode === 'percent') {
+        inputArea.classList.remove('hidden');
+        inputEl.value = '';
+        inputEl.placeholder = '例如 90 或 9 (皆為9折)';
+        unitLabel.textContent = '折';
+        helperText.textContent = '輸入 9 或 90 代表 9折；輸入 85 代表 85折。';
+        quickChips.innerHTML = `
+          <button onclick="applyQuickDiscount(95)" class="px-2.5 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-medium hover:bg-stone-100">95折</button>
+          <button onclick="applyQuickDiscount(90)" class="px-2.5 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-medium hover:bg-stone-100">9折</button>
+          <button onclick="applyQuickDiscount(85)" class="px-2.5 py-1.5 bg-white border border-stone-300 rounded-lg text-xs font-medium hover:bg-stone-100">85折</button>
+        `;
+      }
+      renderCart();
+    }
+
+    function applyQuickDiscount(val) {
+      document.getElementById('discount-value-input').value = val;
+      handleDiscountInput(val);
+    }
+
+    function handleDiscountInput(rawVal) {
+      const num = parseFloat(rawVal);
+      state.discount.value = isNaN(num) || num < 0 ? 0 : num;
+      renderCart();
+    }
+
+    function calculateCartTotals() {
+      const subtotal = state.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+      let discountAmount = 0;
+
+      if (subtotal > 0) {
+        if (state.discount.mode === 'fixed') {
+          discountAmount = Math.min(subtotal, Math.round(state.discount.value));
+        } else if (state.discount.mode === 'percent' && state.discount.value > 0) {
+          let v = state.discount.value;
+          let rate = v <= 10 ? (v * 10) / 100 : v / 100;
+          if (rate > 1) rate = 1;
+          const discountedTotal = Math.round(subtotal * rate);
+          discountAmount = Math.max(0, subtotal - discountedTotal);
+        }
+      }
+      const finalTotal = Math.max(0, subtotal - discountAmount);
+      return { subtotal, discountAmount, finalTotal };
+    }
+
+    function appendNoteTag(tag) {
+      const textarea = document.getElementById('cart-note');
+      let current = textarea.value.trim();
+      if (!current.includes(tag)) {
+        textarea.value = current ? `${tag} ${current}` : `${tag} `;
+        updateCartNote(textarea.value);
+      }
+    }
+
+    function appendNoteTemplate() {
+      const textarea = document.getElementById('cart-note');
+      const tpl = `【訂製寄件】姓名： / 電話： / 7-11門市： / 客製細節：`;
+      textarea.value = textarea.value.trim() ? `${textarea.value.trim()}\n${tpl}` : tpl;
+      updateCartNote(textarea.value);
+      textarea.focus();
+    }
+
+    function updateCartNote(val) {
+      state.cartNote = val;
+    }
+
+    function renderCart() {
+      const container = document.getElementById('cart-items-container');
+      const totalItemsCount = state.cart.reduce((acc, item) => acc + item.qty, 0);
+      document.getElementById('cart-count-badge').textContent = totalItemsCount;
+
+      if (state.cart.length === 0) {
+        container.innerHTML = `
+          <div class="py-10 text-center text-stone-400 space-y-1">
+            <p class="text-2xl">🧺</p>
+            <p class="text-xs">尚未選購商品，請點選左側規格加入</p>
+          </div>
+        `;
+      } else {
+        container.innerHTML = state.cart.map((item, idx) => `
+          <div class="pt-2.5 first:pt-0 flex items-center justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-bold text-stone-800 truncate">${escapeHtml(item.productName)}</p>
+              <p class="text-[11px] text-stone-500">${escapeHtml(item.variantName)} · NT$ ${item.price.toLocaleString()}</p>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button onclick="updateCartQty(${idx}, -1)" class="touch-btn w-7 h-7 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-sm flex items-center justify-center">−</button>
+              <span class="w-6 text-center text-xs font-bold">${item.qty}</span>
+              <button onclick="updateCartQty(${idx}, 1)" class="touch-btn w-7 h-7 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-sm flex items-center justify-center">＋</button>
+              <span class="w-16 text-right text-xs font-bold text-stone-800">NT$ ${(item.price * item.qty).toLocaleString()}</span>
+              <button onclick="removeCartItem(${idx})" class="text-stone-300 hover:text-red-500 p-1 ml-0.5">✕</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      const { subtotal, discountAmount, finalTotal } = calculateCartTotals();
+      document.getElementById('summary-subtotal').textContent = `NT$ ${subtotal.toLocaleString()}`;
+      document.getElementById('summary-discount').textContent = `- NT$ ${discountAmount.toLocaleString()}`;
+      document.getElementById('summary-total').textContent = `NT$ ${finalTotal.toLocaleString()}`;
+      document.getElementById('btn-checkout').disabled = state.cart.length === 0;
+    }
+
+    function openCheckoutConfirm() {
+      if (state.cart.length === 0) return;
+      const { subtotal, discountAmount, finalTotal } = calculateCartTotals();
+
+      document.getElementById('confirm-items-list').innerHTML = state.cart.map(item => `
+        <div class="flex justify-between items-center text-xs border-b border-stone-200/60 pb-2 last:border-none last:pb-0">
+          <div>
+            <span class="font-bold text-stone-800">${escapeHtml(item.productName)}</span>
+            <span class="text-stone-500 block">${escapeHtml(item.variantName)} (NT$ ${item.price.toLocaleString()} × ${item.qty})</span>
+          </div>
+          <span class="font-bold text-stone-800">NT$ ${(item.price * item.qty).toLocaleString()}</span>
+        </div>
+      `).join('');
+
+      document.getElementById('confirm-subtotal').textContent = `NT$ ${subtotal.toLocaleString()}`;
+      document.getElementById('confirm-discount').textContent = `- NT$ ${discountAmount.toLocaleString()}`;
+      document.getElementById('confirm-total').textContent = `NT$ ${finalTotal.toLocaleString()}`;
+      document.getElementById('confirm-note').textContent = state.cartNote.trim() || '（無填寫備註）';
+
+      const modal = document.getElementById('modal-checkout-confirm');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeCheckoutConfirm() {
+      const modal = document.getElementById('modal-checkout-confirm');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function generateOrderId() {
+      const now = new Date();
+      const datePart = formatDateYMD(now).replace(/-/g, '');
+      const todayOrders = state.orders.filter(o => o.id.startsWith(datePart));
+      const seq = String(todayOrders.length + 1).padStart(3, '0');
+      return `${datePart}-${seq}`;
+    }
+
+    function submitOrderAndShowReceipt() {
+      const { subtotal, discountAmount, finalTotal } = calculateCartTotals();
+      const newOrder = {
+        id: generateOrderId(),
+        timestamp: new Date().toISOString(),
+        items: JSON.parse(JSON.stringify(state.cart)),
+        subtotal,
+        discountAmount,
+        finalTotal,
+        note: state.cartNote.trim() || '[現金]'
+      };
+
+      state.orders.unshift(newOrder);
+      closeCheckoutConfirm();
+      clearCart();
+      saveAllDataAndSync('訂單已儲存並同步至雲端！');
+      showReceiptModal(newOrder);
+    }
+
+    function showReceiptModal(order) {
+      document.getElementById('receipt-shop-name').textContent = state.shopName;
+      document.getElementById('receipt-order-id').textContent = `#${order.id}`;
+      document.getElementById('receipt-datetime').textContent = formatDateTimeReadable(order.timestamp);
+
+      document.getElementById('receipt-items-list').innerHTML = order.items.map(item => `
+        <div class="pt-2 first:pt-0 flex justify-between items-start gap-2">
+          <div>
+            <p class="font-bold text-stone-800">${escapeHtml(item.productName)}</p>
+            <p class="text-[11px] text-stone-500">${escapeHtml(item.variantName)} × ${item.qty} <span class="text-stone-400">(@${item.price})</span></p>
+          </div>
+          <span class="font-bold text-stone-800 shrink-0">NT$ ${(item.price * item.qty).toLocaleString()}</span>
+        </div>
+      `).join('');
+
+      document.getElementById('receipt-subtotal').textContent = `NT$ ${order.subtotal.toLocaleString()}`;
+      document.getElementById('receipt-discount').textContent = `- NT$ ${order.discountAmount.toLocaleString()}`;
+      document.getElementById('receipt-total').textContent = `NT$ ${order.finalTotal.toLocaleString()}`;
+
+      const noteBox = document.getElementById('receipt-note-box');
+      if (order.note) {
+        noteBox.classList.remove('hidden');
+        document.getElementById('receipt-note').textContent = order.note;
+      } else {
+        noteBox.classList.add('hidden');
+      }
+
+      const modal = document.getElementById('modal-receipt');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeReceiptModal() {
+      const modal = document.getElementById('modal-receipt');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    // ==================== 模組 1：商品管理（全系統連動） ====================
+    function renderProductManagement() {
+      const container = document.getElementById('manage-product-list');
+      if (state.products.length === 0) {
+        container.innerHTML = `<div class="col-span-full bg-white p-10 rounded-2xl text-center text-stone-400 text-sm">尚無任何商品，請點擊右上角「新增商品」。</div>`;
+        return;
+      }
+
+      container.innerHTML = state.products.map(prod => `
+        <div class="bg-white rounded-2xl border border-stone-200/90 shadow-xs overflow-hidden flex flex-col justify-between">
+          <div>
+            <div class="px-5 py-3.5 bg-oat/50 border-b border-stone-200/80 flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <h3 class="font-bold text-stone-800 text-base">${escapeHtml(prod.name)}</h3>
+                ${prod.category ? `<span class="text-xs px-2 py-0.5 bg-white border border-stone-200 text-stone-600 rounded-md">${escapeHtml(prod.category)}</span>` : ''}
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button onclick="openProductModal('${prod.id}')" class="px-2.5 py-1 text-xs font-medium bg-white border border-stone-300 rounded-lg text-stone-700 hover:bg-stone-100">編輯</button>
+                <button onclick="deleteProduct('${prod.id}')" class="px-2.5 py-1 text-xs font-medium bg-white border border-red-200 rounded-lg text-red-600 hover:bg-red-50">刪除</button>
+              </div>
+            </div>
+
+            <div class="p-4 divide-y divide-stone-100">
+              ${prod.variants.map(v => `
+                <div class="py-2 first:pt-0 last:pb-0 flex items-center justify-between gap-2">
+                  <span class="text-sm text-stone-700 font-medium">${escapeHtml(v.name)}</span>
+                  <div class="flex items-center gap-2">
+                    <div class="relative w-28">
+                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-stone-400">NT$</span>
+                      <input type="number" value="${v.price}" onchange="quickUpdateVariantPrice('${prod.id}', '${v.id}', this.value)" class="w-full pl-9 pr-2 py-1 text-right text-sm font-bold text-brand bg-stone-50 border border-stone-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand">
+                    </div>
+                    ${prod.variants.length > 1 ? `<button onclick="quickDeleteVariant('${prod.id}', '${v.id}')" class="text-stone-300 hover:text-red-500 p-1 text-xs">✕</button>` : ''}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="px-4 py-2.5 bg-stone-50 border-t border-stone-100 flex items-center gap-2">
+            <input type="text" id="quick-vname-${prod.id}" placeholder="新增規格名稱" class="flex-1 px-2.5 py-1.5 text-xs bg-white border border-stone-200 rounded-lg">
+            <input type="number" id="quick-vprice-${prod.id}" placeholder="單價" class="w-20 px-2.5 py-1.5 text-xs bg-white border border-stone-200 rounded-lg">
+            <button onclick="quickAddVariant('${prod.id}')" class="px-3 py-1.5 bg-brand text-white text-xs font-bold rounded-lg hover:bg-brand-light shrink-0">＋新增規格</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function quickUpdateVariantPrice(prodId, varId, newPrice) {
+      const prod = state.products.find(p => p.id === prodId);
+      if (!prod) return;
+      const v = prod.variants.find(item => item.id === varId);
+      if (!v) return;
+      const parsed = parseInt(newPrice, 10);
+      if (isNaN(parsed) || parsed < 0) return;
+      v.price = parsed;
+      saveAllDataAndSync(`已連動更新「${v.name}」單價為 NT$ ${parsed}`);
+    }
+
+    function quickAddVariant(prodId) {
+      const nameInput = document.getElementById(`quick-vname-${prodId}`);
+      const priceInput = document.getElementById(`quick-vprice-${prodId}`);
+      const name = nameInput.value.trim();
+      const price = parseInt(priceInput.value, 10);
+
+      if (!name || isNaN(price) || price < 0) {
+        alert('請輸入完整的規格名稱與單價');
+        return;
+      }
+      const prod = state.products.find(p => p.id === prodId);
+      if (!prod) return;
+      prod.variants.push({
+        id: 'v_' + Date.now() + Math.random().toString(36).slice(2, 5),
+        name,
+        price
+      });
+      saveAllDataAndSync('已新增規格並同步雲端');
+    }
+
+    function quickDeleteVariant(prodId, varId) {
+      const prod = state.products.find(p => p.id === prodId);
+      if (!prod || prod.variants.length <= 1) return;
+      prod.variants = prod.variants.filter(v => v.id !== varId);
+      saveAllDataAndSync('已移除規格並同步雲端');
+    }
+
+    function deleteProduct(prodId) {
+      const prod = state.products.find(p => p.id === prodId);
+      if (!prod) return;
+      if (!confirm(`確定要刪除商品「${prod.name}」嗎？`)) return;
+      state.products = state.products.filter(p => p.id !== prodId);
+      saveAllDataAndSync('商品已刪除並同步雲端');
+    }
+
+    function openProductModal(prodId = null) {
+      const titleEl = document.getElementById('product-modal-title');
+      const idInput = document.getElementById('edit-product-id');
+      const nameInput = document.getElementById('prod-name-input');
+      const catInput = document.getElementById('prod-cat-input');
+      const variantsContainer = document.getElementById('modal-variants-container');
+      variantsContainer.innerHTML = '';
+
+      if (prodId) {
+        const prod = state.products.find(p => p.id === prodId);
+        if (!prod) return;
+        titleEl.textContent = '編輯商品與規格';
+        idInput.value = prod.id;
+        nameInput.value = prod.name;
+        catInput.value = prod.category || '';
+        prod.variants.forEach(v => addVariantRowInModal(v.id, v.name, v.price));
+      } else {
+        titleEl.textContent = '新增商品與規格';
+        idInput.value = '';
+        nameInput.value = '';
+        catInput.value = '';
+        addVariantRowInModal('', '標準款', '');
+      }
+
+      const modal = document.getElementById('modal-product');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeProductModal() {
+      const modal = document.getElementById('modal-product');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function addVariantRowInModal(id = '', name = '', price = '') {
+      const container = document.getElementById('modal-variants-container');
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-2 variant-edit-row';
+      row.dataset.vid = id || ('v_' + Date.now() + Math.random().toString(36).slice(2, 6));
+      row.innerHTML = `
+        <input type="text" placeholder="規格名稱" value="${escapeHtml(String(name))}" class="var-name-input flex-1 px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-sm">
+        <input type="number" placeholder="單價 NT$" value="${price}" class="var-price-input w-28 px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl text-sm">
+        <button type="button" onclick="this.parentElement.remove()" class="text-stone-400 hover:text-red-500 p-1.5">✕</button>
+      `;
+      container.appendChild(row);
+    }
+
+    function saveProductFromModal() {
+      const editId = document.getElementById('edit-product-id').value;
+      const name = document.getElementById('prod-name-input').value.trim();
+      const category = document.getElementById('prod-cat-input').value.trim();
+
+      if (!name) {
+        alert('請填寫商品名稱');
+        return;
+      }
+
+      const rows = document.querySelectorAll('#modal-variants-container .variant-edit-row');
+      const variants = [];
+      for (const r of rows) {
+        const vName = r.querySelector('.var-name-input').value.trim();
+        const vPrice = parseInt(r.querySelector('.var-price-input').value, 10);
+        if (vName && !isNaN(vPrice) && vPrice >= 0) {
+          variants.push({ id: r.dataset.vid, name: vName, price: vPrice });
+        }
+      }
+
+      if (variants.length === 0) {
+        alert('請至少設定一個有效的規格與單價');
+        return;
+      }
+
+      if (editId) {
+        const idx = state.products.findIndex(p => p.id === editId);
+        if (idx > -1) state.products[idx] = { id: editId, name, category, variants };
+      } else {
+        state.products.push({ id: 'p_' + Date.now(), name, category, variants });
+      }
+
+      closeProductModal();
+      saveAllDataAndSync('商品已儲存並同步全系統');
+    }
+
+    // ==================== 模組 3：歷史訂單與銷售統計（含完整明細編輯連動） ====================
+    function setQuickDateFilter(type, shouldRender = true) {
+      const startEl = document.getElementById('filter-date-start');
+      const endEl = document.getElementById('filter-date-end');
+      const now = new Date();
+      const todayStr = formatDateYMD(now);
+
+      if (type === 'today') {
+        startEl.value = todayStr;
+        endEl.value = todayStr;
+      } else if (type === 'week') {
+        const weekAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+        startEl.value = formatDateYMD(weekAgo);
+        endEl.value = todayStr;
+      } else if (type === 'all') {
+        startEl.value = '';
+        endEl.value = '';
+      }
+      if (shouldRender) renderAnalyticsAndHistory();
+    }
+
+    function getFilteredOrders() {
+      const startStr = document.getElementById('filter-date-start').value;
+      const endStr = document.getElementById('filter-date-end').value;
+      const keyword = (document.getElementById('order-search-input')?.value || '').trim().toLowerCase();
+
+      return state.orders.filter(order => {
+        const orderDateStr = formatDateYMD(new Date(order.timestamp));
+        if (startStr && orderDateStr < startStr) return false;
+        if (endStr && orderDateStr > endStr) return false;
+
+        if (keyword) {
+          const inId = order.id.toLowerCase().includes(keyword);
+          const inNote = (order.note || '').toLowerCase().includes(keyword);
+          const inItems = (order.items || []).some(i =>
+            i.productName.toLowerCase().includes(keyword) ||
+            i.variantName.toLowerCase().includes(keyword)
+          );
+          return inId || inNote || inItems;
+        }
+        return true;
+      });
+    }
+
+    function renderAnalyticsAndHistory() {
+      const filteredOrders = getFilteredOrders();
+
+      const totalRevenue = filteredOrders.reduce((s, o) => s + o.finalTotal, 0);
+      const totalDiscount = filteredOrders.reduce((s, o) => s + (o.discountAmount || 0), 0);
+      const totalOrders = filteredOrders.length;
+      const totalItems = filteredOrders.reduce((s, o) => s + (o.items || []).reduce((is, i) => is + i.qty, 0), 0);
+      const avgOrder = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+
+      document.getElementById('stat-total-revenue').textContent = `NT$ ${totalRevenue.toLocaleString()}`;
+      document.getElementById('stat-discount-total').textContent = `累計折讓 NT$ ${totalDiscount.toLocaleString()}`;
+      document.getElementById('stat-total-orders').textContent = `${totalOrders} 筆`;
+      document.getElementById('stat-total-items').textContent = `共售出 ${totalItems} 件商品`;
+      document.getElementById('stat-avg-order').textContent = `NT$ ${avgOrder.toLocaleString()}`;
+
+      // 商品銷售排行
+      const rankMap = {};
+      filteredOrders.forEach(order => {
+        (order.items || []).forEach(item => {
+          const key = `${item.productName}｜${item.variantName}`;
+          if (!rankMap[key]) {
+            rankMap[key] = { productName: item.productName, variantName: item.variantName, qty: 0, amount: 0 };
+          }
+          rankMap[key].qty += item.qty;
+          rankMap[key].amount += item.price * item.qty;
+        });
+      });
+
+      const rankList = Object.values(rankMap).sort((a, b) => b.amount - a.amount);
+      const rankContainer = document.getElementById('product-ranking-list');
+      if (rankList.length === 0) {
+        rankContainer.innerHTML = `<p class="text-center text-stone-400 text-xs py-8">此區間尚無銷售數據</p>`;
+      } else {
+        rankContainer.innerHTML = rankList.map((r, idx) => `
+          <div class="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-5 h-5 rounded-full ${idx < 3 ? 'bg-brand text-white' : 'bg-stone-100 text-stone-500'} text-[11px] font-bold flex items-center justify-center shrink-0">${idx + 1}</span>
+              <div class="min-w-0">
+                <p class="text-xs font-bold text-stone-800 truncate">${escapeHtml(r.productName)}</p>
+                <p class="text-[11px] text-stone-500">${escapeHtml(r.variantName)}</p>
+              </div>
+            </div>
+            <div class="text-right shrink-0">
+              <p class="text-xs font-bold text-brand">NT$ ${r.amount.toLocaleString()}</p>
+              <p class="text-[11px] text-stone-400">售出 ${r.qty} 件</p>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // 歷史訂單清單
+      const historyContainer = document.getElementById('order-history-list');
+      if (filteredOrders.length === 0) {
+        historyContainer.innerHTML = `<p class="text-center text-stone-400 text-xs py-12">查無符合條件的訂單紀錄</p>`;
+      } else {
+        historyContainer.innerHTML = filteredOrders.map(order => `
+          <div class="border border-stone-200 rounded-2xl overflow-hidden bg-stone-50/40">
+            <div class="p-3.5 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2 cursor-pointer hover:bg-stone-50 transition" onclick="toggleOrderDetail('${order.id}')">
+              <div class="space-y-0.5">
+                <div class="flex items-center gap-2">
+                  <span class="font-mono text-xs font-bold text-stone-800">#${order.id}</span>
+                  <span class="text-xs text-stone-400">${formatDateTimeReadable(order.timestamp)}</span>
+                </div>
+                <p class="text-xs text-stone-600 line-clamp-1">${escapeHtml(order.note || '無備註')}</p>
+              </div>
+              <div class="flex items-center justify-between sm:justify-end gap-3">
+                <div class="text-right">
+                  <span class="text-sm font-bold text-brand">NT$ ${order.finalTotal.toLocaleString()}</span>
+                  ${order.discountAmount > 0 ? `<span class="block text-[10px] text-terra">已折 -${order.discountAmount}</span>` : ''}
+                </div>
+                <span class="text-stone-400 text-xs">▼</span>
+              </div>
+            </div>
+
+            <div id="detail-${order.id}" class="hidden px-4 py-3 bg-stone-50 border-t border-stone-200/80 text-xs space-y-3">
+              <div class="space-y-1.5">
+                ${(order.items || []).map(item => `
+                  <div class="flex justify-between text-stone-700">
+                    <span>• ${escapeHtml(item.productName)} (${escapeHtml(item.variantName)}) × ${item.qty}</span>
+                    <span class="font-medium">NT$ ${(item.price * item.qty).toLocaleString()}</span>
+                  </div>
+                `).join('')}
+              </div>
+
+              <div class="p-2.5 bg-oat/60 rounded-xl text-stone-700 whitespace-pre-wrap">
+                <strong class="text-stone-900">備註內容：</strong>${escapeHtml(order.note || '無')}
+              </div>
+
+              <div class="flex items-center justify-end gap-2 pt-1">
+                <button onclick="showReceiptById('${order.id}')" class="px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-stone-700 font-medium hover:bg-stone-100">🧾 電子收據</button>
+                <button onclick="openEditOrderModal('${order.id}')" class="px-3 py-1.5 bg-white border border-stone-300 rounded-lg text-brand font-bold hover:bg-stone-100">✏️ 編輯明細/金額</button>
+                <button onclick="deleteOrder('${order.id}')" class="px-3 py-1.5 bg-white border border-red-200 rounded-lg text-red-600 font-medium hover:bg-red-50">🗑️ 刪除</button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    function toggleOrderDetail(orderId) {
+      const el = document.getElementById(`detail-${orderId}`);
+      if (el) el.classList.toggle('hidden');
+    }
+
+    function showReceiptById(orderId) {
+      const order = state.orders.find(o => o.id === orderId);
+      if (order) showReceiptModal(order);
+    }
+
+    // --- 完整編輯歷史訂單明細（連動統計、排行榜與 Google Sheet） ---
+    function openEditOrderModal(orderId) {
+      const order = state.orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      document.getElementById('edit-order-id').value = order.id;
+      document.getElementById('edit-order-no').textContent = `單號 #${order.id} (${formatDateTimeReadable(order.timestamp)})`;
+      document.getElementById('edit-order-note-input').value = order.note || '';
+
+      state.editingOrderItems = JSON.parse(JSON.stringify(order.items || []));
+
+      // 建立補加商品下拉選單
+      const selectEl = document.getElementById('edit-order-add-select');
+      const options = [];
+      state.products.forEach(p => {
+        p.variants.forEach(v => {
+          options.push(`<option value="${p.id}|${v.id}">${escapeHtml(p.name)} - ${escapeHtml(v.name)} ($${v.price})</option>`);
+        });
+      });
+      selectEl.innerHTML = options.join('');
+
+      renderEditingOrderItems(order.finalTotal);
+
+      const modal = document.getElementById('modal-edit-order');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function renderEditingOrderItems(overrideTotal = null) {
+      const container = document.getElementById('edit-order-items-container');
+      if (state.editingOrderItems.length === 0) {
+        container.innerHTML = `<p class="text-xs text-red-500 text-center py-2">訂單至少需保留一項商品</p>`;
+      } else {
+        container.innerHTML = state.editingOrderItems.map((item, idx) => `
+          <div class="flex items-center justify-between gap-2 text-xs bg-white p-2 rounded-xl border border-stone-200">
+            <div class="min-w-0 flex-1">
+              <p class="font-bold text-stone-800 truncate">${escapeHtml(item.productName)}</p>
+              <p class="text-stone-500">${escapeHtml(item.variantName)} ($${item.price})</p>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button type="button" onclick="changeEditingOrderItemQty(${idx}, -1)" class="w-6 h-6 bg-stone-100 rounded font-bold">−</button>
+              <span class="w-5 text-center font-bold">${item.qty}</span>
+              <button type="button" onclick="changeEditingOrderItemQty(${idx}, 1)" class="w-6 h-6 bg-stone-100 rounded font-bold">＋</button>
+              <button type="button" onclick="removeEditingOrderItem(${idx})" class="text-stone-300 hover:text-red-500 ml-1">✕</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      const newSubtotal = state.editingOrderItems.reduce((s, i) => s + i.price * i.qty, 0);
+      document.getElementById('edit-order-subtotal').textContent = `NT$ ${newSubtotal.toLocaleString()}`;
+      document.getElementById('edit-order-total-input').value = overrideTotal !== null ? overrideTotal : newSubtotal;
+    }
+
+    function changeEditingOrderItemQty(idx, delta) {
+      const item = state.editingOrderItems[idx];
+      if (!item) return;
+      item.qty += delta;
+      if (item.qty <= 0) state.editingOrderItems.splice(idx, 1);
+      renderEditingOrderItems();
+    }
+
+    function removeEditingOrderItem(idx) {
+      state.editingOrderItems.splice(idx, 1);
+      renderEditingOrderItems();
+    }
+
+    function addItemToEditingOrder() {
+      const val = document.getElementById('edit-order-add-select').value;
+      if (!val) return;
+      const [prodId, varId] = val.split('|');
+      const prod = state.products.find(p => p.id === prodId);
+      if (!prod) return;
+      const variant = prod.variants.find(v => v.id === varId);
+      if (!variant) return;
+
+      const existing = state.editingOrderItems.find(i => i.productId === prodId && i.variantId === varId);
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        state.editingOrderItems.push({
+          productId: prod.id,
+          productName: prod.name,
+          variantId: variant.id,
+          variantName: variant.name,
+          price: variant.price,
+          qty: 1
+        });
+      }
+      renderEditingOrderItems();
+    }
+
+    function closeEditOrderModal() {
+      const modal = document.getElementById('modal-edit-order');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function saveEditedOrder() {
+      if (state.editingOrderItems.length === 0) {
+        alert('訂單內至少需有一項商品，若整筆取消請直接刪除訂單。');
+        return;
+      }
+      const id = document.getElementById('edit-order-id').value;
+      const newTotal = parseInt(document.getElementById('edit-order-total-input').value, 10);
+      const newNote = document.getElementById('edit-order-note-input').value.trim();
+
+      if (isNaN(newTotal) || newTotal < 0) {
+        alert('請輸入有效的實收金額');
+        return;
+      }
+
+      const order = state.orders.find(o => o.id === id);
+      if (!order) return;
+
+      const newSubtotal = state.editingOrderItems.reduce((s, i) => s + i.price * i.qty, 0);
+      order.items = JSON.parse(JSON.stringify(state.editingOrderItems));
+      order.subtotal = newSubtotal;
+      order.finalTotal = newTotal;
+      order.discountAmount = Math.max(0, newSubtotal - newTotal);
+      order.note = newNote;
+
+      closeEditOrderModal();
+      saveAllDataAndSync('訂單明細已更新並同步至雲端');
+    }
+
+    function deleteOrder(orderId) {
+      if (!confirm(`確定要刪除訂單 #${orderId} 嗎？刪除後統計與 Google Sheet 將同步更新。`)) return;
+      state.orders = state.orders.filter(o => o.id !== orderId);
+      saveAllDataAndSync('訂單已刪除並同步雲端');
+    }
+
+    // --- CSV 匯出 ---
+    function exportOrdersToCSV() {
+      const filteredOrders = getFilteredOrders();
+      if (filteredOrders.length === 0) {
+        alert('目前篩選區間內沒有訂單可供匯出。');
+        return;
+      }
+
+      const headers = ['訂單編號', '結帳日期時間', '商品名稱', '規格', '單價', '數量', '折抵金額', '最終實收金額', '備註'];
+      const rows = [];
+
+      filteredOrders.forEach(order => {
+        const dt = formatDateTimeReadable(order.timestamp);
+        (order.items || []).forEach((item, idx) => {
+          rows.push([
+            order.id,
+            dt,
+            item.productName,
+            item.variantName,
+            item.price,
+            item.qty,
+            idx === 0 ? order.discountAmount : 0,
+            idx === 0 ? order.finalTotal : '',
+            idx === 0 ? (order.note || '') : ''
+          ]);
+        });
+      });
+
+      const csvContent = '\uFEFF' + [headers, ...rows]
+        .map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
+        .join('\r\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${state.shopName}_市集銷售報表_${formatDateYMD(new Date())}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('CSV 報表已下載');
+    }
+
+    // --- 工具函式 ---
+    function formatDateYMD(dateObj) {
+      const y = dateObj.getFullYear();
+      const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const d = String(dateObj.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function formatDateTimeReadable(isoStr) {
+      const d = new Date(isoStr);
+      return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    let toastTimer = null;
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.remove('opacity-0');
+      t.classList.add('opacity-100');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        t.classList.remove('opacity-100');
+        t.classList.add('opacity-0');
+      }, 2400);
+    }
+
+    window.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+</html>
